@@ -45,6 +45,7 @@ def save_forecasts(
     inserted = 0
     with session_factory() as session:
         for forecast in forecasts:
+            # The city/date pair is unique, so repeated launches do not create copies.
             exists = session.scalar(
                 select(WeatherForecast).where(
                     WeatherForecast.city == city,

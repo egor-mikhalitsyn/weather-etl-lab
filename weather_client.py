@@ -3,16 +3,12 @@
 from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta, timezone
-import logging
 from typing import Any
 
 import requests
 
 from config import Settings
 from geo_locator import Location
-
-
-logger = logging.getLogger(__name__)
 
 
 class WeatherApiError(RuntimeError):
@@ -81,6 +77,7 @@ def aggregate_daily_forecast(raw_data: dict[str, Any]) -> list[DailyForecast]:
         api_tz = timezone(timedelta(seconds=timezone_shift))
         points_by_day: dict[date, list[dict[str, Any]]] = {}
 
+        # OpenWeatherMap returns UTC timestamps; group them by the city's local date.
         for point in raw_data["list"]:
             local_dt = datetime.fromtimestamp(int(point["dt"]), tz=UTC).astimezone(api_tz)
             points_by_day.setdefault(local_dt.date(), []).append(point)
@@ -135,5 +132,7 @@ def aggregate_daily_forecast(raw_data: dict[str, Any]) -> list[DailyForecast]:
             ) from error
 
     if len(result) < 4:
-        logger.warning("Получено меньше 4 дней прогноза: %s", len(result))
+        raise WeatherApiError(
+            f"Получено недостаточно дней прогноза: {len(result)} вместо 4"
+        )
     return result

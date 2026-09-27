@@ -73,6 +73,7 @@ def main() -> int:
         daily_forecasts[-1].forecast_date,
     )
     logging.info("Новых записей сохранено: %s", inserted_count)
+    logging.info("Записей в отчёте: %s", len(report_forecasts))
     logging.info("Всего строк для города в БД: %s", len(saved_forecasts))
     logging.info("Markdown-отчёт: %s", output_path.resolve())
     return 0

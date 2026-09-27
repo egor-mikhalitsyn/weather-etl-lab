@@ -1,4 +1,4 @@
-# Weather ETL Lab
+# Лабораторная работа: Weather ETL
 
 Проект получает прогноз погоды через OpenWeatherMap, автоматически определяет город по IP, агрегирует 3-часовые точки прогноза в дневные сводки, сохраняет результат в SQLite через SQLAlchemy и выгружает аккуратный Markdown-отчёт.
 
@@ -30,7 +30,7 @@ pip install -r requirements.txt
 copy .env.example .env
 ```
 
-Получите бесплатный API-ключ на сайте OpenWeatherMap и заполните:
+Зарегистрируйтесь на [openweathermap.org](https://openweathermap.org/api), получите бесплатный API-ключ и заполните:
 
 ```env
 WEATHER_API_KEY=your_real_key
@@ -54,7 +54,7 @@ OUTPUT_FILE=weather_report.md
 python main.py
 ```
 
-Программа выведет в консоль город, координаты, период прогноза, количество сохранённых записей и путь к Markdown-файлу.
+Программа выведет в консоль город, координаты, период прогноза, количество новых записей, число строк отчёта и путь к Markdown-файлу.
 
 ## Структура
 

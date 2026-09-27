@@ -13,8 +13,9 @@ def export_to_markdown(
         raise ValueError("Нет данных для экспорта")
 
     path = Path(output_file)
-    start_date = forecasts[0].forecast_date
-    end_date = forecasts[-1].forecast_date
+    sorted_forecasts = sorted(forecasts, key=lambda item: item.forecast_date)
+    start_date = sorted_forecasts[0].forecast_date
+    end_date = sorted_forecasts[-1].forecast_date
 
     lines = [
         "# Прогноз погоды",
@@ -28,7 +29,7 @@ def export_to_markdown(
         "|---|---:|---:|---|---:|---:|",
     ]
 
-    for item in forecasts:
+    for item in sorted_forecasts:
         lines.append(
             "| "
             f"{item.forecast_date} | "
