@@ -1,0 +1,12 @@
+.env
+*.db
+*.sqlite
+weather_report.md
+*.log
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.idea/
+.vscode/
