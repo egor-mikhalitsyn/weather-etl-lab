@@ -1,0 +1,21 @@
+# Метаданные и зависимости для установки через pip или запуска через uv.
+[project]
+name = "weather-etl-lab"
+version = "0.2.0"
+description = "Four-day weather ETL with SQLite and per-city Markdown reports"
+readme = "README.md"
+# datetime.UTC используется в расчётах начиная с Python 3.11.
+requires-python = ">=3.11"
+dependencies = [
+    "requests>=2.32.0",
+    "SQLAlchemy>=2.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["core"]
+py-modules = ["main", "db_models", "exporter", "geo_locator", "weather_client"]

@@ -1,3 +1,4 @@
+# Библиотеки для HTTP-запросов, ORM и чтения .env; также указаны в pyproject.toml.
 requests>=2.32.0
 SQLAlchemy>=2.0.0
 python-dotenv>=1.0.0

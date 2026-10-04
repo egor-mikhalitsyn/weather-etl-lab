@@ -1,4 +1,4 @@
-"""Current location detection through an IP geolocation API."""
+"""Определение города по IP и переход к резервной локации при сбое."""
 
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -7,37 +7,43 @@ from typing import Any
 
 import requests
 
-from config import Settings
+from core.settings import Settings
+from core.exceptions import GeoLocationError
 
 
 logger = logging.getLogger(__name__)
 
 
-class GeoLocationError(RuntimeError):
-    """Raised when geolocation data cannot be loaded or parsed."""
-
-
 @dataclass(frozen=True)
 class Location:
+    """Город и координаты для запроса погоды; объект неизменяемый."""
+
     city: str
     lat: float | None = None
     lon: float | None = None
 
 
 def detect_location(settings: Settings) -> Location:
+    """Определить локацию по IP; при сбое использовать резерв из настроек."""
     try:
-        response = requests.get(settings.geo_api_url, timeout=8)
+        # Токен нужен для настройки 2ip.io; без токена работает ipinfo.
+        params = {"token": settings.geo_api_key} if settings.geo_api_key else None
+        response = requests.get(settings.geo_api_url, params=params, timeout=8)
         response.raise_for_status()
         data = response.json()
         return _parse_location(data)
-    except (requests.RequestException, ValueError, GeoLocationError) as error:
-        logger.warning("Не удалось определить локацию автоматически: %s", error)
+    except (requests.RequestException, TypeError, ValueError, GeoLocationError) as error:
+        logger.warning("Геолокация недоступна (%s); используем резерв", type(error).__name__)
         if not settings.geo_api_fallback_city:
             raise GeoLocationError("Не указан GEO_API_FALLBACK_CITY") from error
-        return Location(city=settings.geo_api_fallback_city)
+        return Location(
+            city=settings.geo_api_fallback_city,
+            lat=settings.geo_api_fallback_lat, lon=settings.geo_api_fallback_lon,
+        )
 
 
 def _parse_location(data: Any) -> Location:
+    """Нормализовать форматы ipinfo и 2ip в единый объект Location."""
     if not isinstance(data, Mapping):
         raise GeoLocationError("гео-API вернул некорректный JSON")
 
@@ -55,6 +61,11 @@ def _parse_location(data: Any) -> Location:
     elif data.get("lat") is not None and data.get("lon") is not None:
         lat = float(data["lat"])
         lon = float(data["lon"])
+
+    if lat is not None and not -90 <= lat <= 90:
+        raise GeoLocationError("Некорректная широта")
+    if lon is not None and not -180 <= lon <= 180:
+        raise GeoLocationError("Некорректная долгота")
 
     if not city:
         raise GeoLocationError("гео-API не вернул город")

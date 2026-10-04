@@ -1,20 +1,23 @@
-"""SQLAlchemy models and persistence helpers."""
+"""ORM-модель и операции БД: создание, вставка, обновление и чтение."""
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Iterable
 
 from sqlalchemy import Date, DateTime, Float, Integer, String, UniqueConstraint, create_engine, select
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
-from config import Settings
+from core.settings import Settings, project_path
 from weather_client import DailyForecast
 
 
 class Base(DeclarativeBase):
-    pass
+    """Реестр ORM-моделей, по которому SQLAlchemy создаёт таблицы."""
 
 
 class WeatherForecast(Base):
+    """Суточная запись; город и дата уникальны на уровне БД."""
+
     __tablename__ = "weather_forecast"
     __table_args__ = (UniqueConstraint("city", "forecast_date", name="uq_city_date"),)
 
@@ -26,59 +29,62 @@ class WeatherForecast(Base):
     humidity: Mapped[int] = mapped_column(Integer, nullable=False)
     wind_speed: Mapped[float] = mapped_column(Float, nullable=False)
     description: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Функция вычисляет время для каждой записи, а не один раз при импорте.
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, default=datetime.utcnow
+        DateTime, nullable=False, default=lambda: datetime.now(UTC)
     )
 
 
 def create_session_factory(settings: Settings) -> sessionmaker[Session]:
-    engine = create_engine(settings.db_url, echo=False, future=True)
+    """Подключить БД и создать отсутствующие таблицы, сохраняя старые данные."""
+    url = make_url(settings.db_url)
+    if url.get_backend_name() == "sqlite" and url.database not in (None, "", ":memory:"):
+        database_path = project_path(url.database)
+        database_path.parent.mkdir(parents=True, exist_ok=True)
+        url = url.set(database=str(database_path))
+    engine = create_engine(url, echo=False)
     Base.metadata.create_all(engine)
+    # Значения остаются доступны для экспорта после закрытия сессии.
     return sessionmaker(bind=engine, expire_on_commit=False)
 
 
 def save_forecasts(
-    session_factory: sessionmaker[Session],
-    city: str,
-    forecasts: Iterable[DailyForecast],
-) -> int:
-    inserted = 0
-    with session_factory() as session:
+    session_factory: sessionmaker[Session], city: str, forecasts: Iterable[DailyForecast],
+) -> tuple[int, int]:
+    """Сохранить пакет транзакцией; вернуть число вставок и обновлений."""
+    inserted = updated = 0
+    # begin автоматически откатывает всю транзакцию при исключении.
+    with session_factory.begin() as session:
         for forecast in forecasts:
-            # The city/date pair is unique, so repeated launches do not create copies.
-            exists = session.scalar(
+            existing = session.scalar(
                 select(WeatherForecast).where(
                     WeatherForecast.city == city,
                     WeatherForecast.forecast_date == forecast.forecast_date,
                 )
             )
-            if exists:
-                continue
+            if existing is None:
+                existing = WeatherForecast(city=city, forecast_date=forecast.forecast_date)
+                session.add(existing)
+                inserted += 1
+            else:
+                # Если показатели не изменились, сохраняем запись и её время как есть.
+                fields = ("temp_min", "temp_max", "humidity", "wind_speed", "description")
+                if all(getattr(existing, field) == getattr(forecast, field) for field in fields):
+                    continue
+                updated += 1
+            # Перезапись необходима только при изменении самого прогноза.
+            existing.temp_min = forecast.temp_min
+            existing.temp_max = forecast.temp_max
+            existing.humidity = forecast.humidity
+            existing.wind_speed = forecast.wind_speed
+            existing.description = forecast.description
+            existing.created_at = datetime.now(UTC)
+    return inserted, updated
 
-            session.add(
-                WeatherForecast(
-                    city=city,
-                    forecast_date=forecast.forecast_date,
-                    temp_min=forecast.temp_min,
-                    temp_max=forecast.temp_max,
-                    humidity=forecast.humidity,
-                    wind_speed=forecast.wind_speed,
-                    description=forecast.description,
-                )
-            )
-            inserted += 1
-        session.commit()
-    return inserted
 
-
-def get_forecasts_for_city(
-    session_factory: sessionmaker[Session], city: str
-) -> list[WeatherForecast]:
+def get_full_db(session_factory: sessionmaker[Session]) -> list[WeatherForecast]:
+    """Прочитать все города для отдельных отчётов, упорядоченных по датам."""
     with session_factory() as session:
-        return list(
-            session.scalars(
-                select(WeatherForecast)
-                .where(WeatherForecast.city == city)
-                .order_by(WeatherForecast.forecast_date)
-            )
-        )
+        return list(session.scalars(
+            select(WeatherForecast).order_by(WeatherForecast.city, WeatherForecast.forecast_date)
+        ))

@@ -1,8 +1,27 @@
+# Секреты и локальные результаты работы не включаются в репозиторий.
+# Личные заметки и памятки не публикуются.
+.private/
+DEFENSE_GUIDE.md
 .env
+.env.*
+!.env.example
 *.db
+*.db-*
 *.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
 weather_report*.md
 *.log
+log/
+data_weather/
+build/
+*.egg-info/
+dist/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 __pycache__/
 *.py[cod]
 .venv/
